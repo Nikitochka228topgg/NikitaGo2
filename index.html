@@ -1,5 +1,4 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>VKUSNO DROP</title>
+<!doctype html><html><head><meta charset=utf-8><title>VKUSNO DROP</title><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#0d1014;color:#e9ecf0}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Manrope:wght@400;600;800&display=swap">
 <style>
 /* Layout: sticky garage header (balance + minute income meter), tabs below, content grids of vehicle tiles.
@@ -146,7 +145,7 @@ footer{margin-top:30px;color:var(--mute);font-size:12px;display:flex;flex-wrap:w
   <button class="btn" id="reset">Начать заново</button>
 </footer>
 </div>
-<div id="toast" hidden></div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
 <div id="reveal" hidden></div>
 
 <script>
@@ -362,6 +361,8 @@ try{const r=localStorage.getItem(KEY);if(r){const o=JSON.parse(r);if(o&&typeof o
 let giftNow=false;
 if(!S.gift3){S.gift3=1;S.gift2=1;S.gift=1;S.bal+=100000;giftNow=true;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+let giftSum=giftNow?100000:0;
+if(!S.gift4){S.gift4=1;S.bal+=1000000;giftSum+=1000000;giftNow=true;save()}
 let tab="cases",openCase=null,sel=new Set(),target=null,busy=false;
 let q="",sortBy="asc",rf="all",ctab="";
 const $=s=>document.querySelector(s);
@@ -418,10 +419,12 @@ function head(){
   const tb=[["cases","Кейсы",CASES.length],["upg","Апгрейдер",""],["inv","Инвентарь",S.inv.length],["cat","Каталог",ITEMS.length]];
   $("#tabs").innerHTML=tb.map(t=>`<button role="tab" data-tab="${t[0]}" aria-selected="${tab===t[0]}">${t[1]}${t[2]!==""?`<span class="cnt">${t[2]}</span>`:""}</button>`).join("");
 }
+let lastT=Date.now();
 setInterval(()=>{
-  S.sec++;S.bal+=10/60;
-  if(S.sec%60===0)toast("+$10 за минуту игры");
-  if(S.sec%5===0)save();
+  const now=Date.now(),dt=Math.max(1,Math.min(3600,Math.round((now-lastT)/1000)));lastT=now;
+  const was=Math.floor(S.sec/60);S.sec+=dt;S.bal+=10/60*dt;
+  if(Math.floor(S.sec/60)>was)toast(dt>5?"Пока тебя не было: +$"+Math.round(10/60*dt):"+$10 за минуту игры");
+  if(S.sec%5===0||dt>1)save();
   $("#bal").textContent=fmt(S.bal);
   $("#incBar").style.width=((S.sec%60)/60*100)+"%";
   $("#incLbl").textContent="+10 $ через "+(60-S.sec%60)+" с";
@@ -500,7 +503,7 @@ function viewInv(){
   const list=sortList(filt(all));
   const sv=all.filter(i=>sel.has(i.uid)).reduce((s,i)=>s+i.v,0);
   $("#main").innerHTML=`<h2>Инвентарь</h2><p class="sub">${all.length} предметов на ${fmt(total)}. Нажми на предмет, чтобы выбрать.</p>${controls()}
-  <div class="tools"><button class="btn" id="selAll">Выбрать показанные</button><button class="btn" id="selNone">Снять выбор</button>
+  <div class="tools"><button class="btn" id="selAll">Выбрать показанные</button><button class="btn" id="selJunk">Выбрать хлам</button><button class="btn" id="selNone">Снять выбор</button>
   <button class="btn pri" id="sellSel" ${sel.size?"":"disabled"}>Продать выбранные ${sel.size?"("+sel.size+") за "+fmt(sv):""}</button>
   <button class="btn" id="toUp" ${sel.size?"":"disabled"}>В апгрейдер</button></div>
   <div class="grid" id="list">${list.length?list.map(it=>card(it,{uid:it.uid,sel:sel.has(it.uid),btn:1})).join(""):'<p class="sub">Пусто. Открой кейс или купи предмет через апгрейд.</p>'}</div>`;
@@ -553,8 +556,7 @@ function doUpgrade(){
   const ids=[...sel];S.inv=S.inv.filter(x=>!sel.has(x.uid));sel.clear();
   const A=ch*360,won=Math.random()<ch,reg=won?[0,A]:[A,360];
   let landing;
-  if(Math.random()<.5){const d=Math.min(.4+Math.random()*7,(reg[1]-reg[0])*.45);landing=Math.random()<.5?reg[0]+d:reg[1]-d}
-  else landing=reg[0]+Math.random()*(reg[1]-reg[0]);
+  landing=reg[0]+Math.random()*(reg[1]-reg[0]);
   const dur=3600+Math.floor(Math.random()*1800),turns=4+Math.floor(Math.random()*4);
   let uid=null,cons=null,cc=null;
   if(won){uid=S.uid++;S.inv.push({uid,id:T.id});S.upW++}else{
@@ -583,10 +585,10 @@ function doUpgrade(){
 function viewCat(){
   const list=sortList(filt(ITEMS.slice()));
   $("#main").innerHTML=`<h2>Каталог</h2><p class="sub">Все ${ITEMS.length} предметов игры: ${MODELS.length} машин и устройств в ${VAR.length} состояниях, от игрушечной машинки до Bugatti La Voiture Noire.</p>${controls()}
-  <p class="sub" id="cnt">Показано: ${list.length}. Нажми на предмет, чтобы купить.</p><div class="grid">${list.map(it=>card(it,{id:it.id,sel:catSel===it.id,btn:1})).join("")}</div><div class="catpad"></div><div id="buybar" hidden></div>`;
+  <p class="sub" id="cnt">Показано: ${Math.min(list.length,catLimit)} из ${list.length}. Нажми на предмет, чтобы купить.</p><div class="grid">${list.slice(0,catLimit).map(it=>card(it,{id:it.id,sel:catSel===it.id,btn:1})).join("")}</div>${list.length>catLimit?'<p style="text-align:center"><button class="btn" id="more">Показать ещё</button></p>':""}<div class="catpad"></div><div id="buybar" hidden></div>`;
   renderBuy();
 }
-let catSel=null;
+let catSel=null,catLimit=120;
 const BUY_MARKUP=1.2;
 const buyPrice=it=>Math.ceil(it.v*BUY_MARKUP);
 function renderBuy(){
@@ -609,7 +611,7 @@ function restoreFocus(id,pos){const e=document.getElementById(id);if(e){e.focus(
 
 document.addEventListener("click",e=>{
   const t=e.target.closest("[data-tab]");
-  if(t){if(busy)return;tab=t.dataset.tab;openCase=null;q="";rf="all";catSel=null;render();return}
+  if(t){if(busy)return;tab=t.dataset.tab;openCase=null;q="";rf="all";catSel=null;catLimit=120;render();return}
   const cs=e.target.closest(".case");if(cs&&!busy){openCase=+cs.dataset.c;render();return}
   if(e.target.id==="back"&&!busy){openCase=null;render();return}
   if(e.target.id==="openBtn"){openOne();return}
@@ -621,6 +623,8 @@ document.addEventListener("click",e=>{
   if(qb&&!busy){qty=+qb.dataset.qty;document.querySelectorAll("#qty .btn").forEach(b=>b.classList.toggle("pri",+b.dataset.qty===qty));const c=CASES[openCase],ob=$("#openBtn");ob.textContent=openLabel(c);ob.disabled=S.bal<c.price*qty;return}
   if(e.target.id==="goBtn"){doUpgrade();return}
   if(e.target.id==="selAll"){invItems().filter(i=>(rf==="all"||i.t==rf)&&(!q||(i.model+" "+i.vr).toLowerCase().includes(q.toLowerCase()))).forEach(i=>sel.add(i.uid));viewInv();return}
+  if(e.target.id==="more"){catLimit+=120;viewCat();return}
+  if(e.target.id==="selJunk"){invItems().filter(i=>i.t===0).forEach(i=>sel.add(i.uid));viewInv();return}
   if(e.target.id==="selNone"){sel.clear();viewInv();return}
   if(e.target.id==="sellSel"){sell([...sel]);viewInv();return}
   if(e.target.id==="toUp"){tab="upg";q="";render();return}
@@ -640,10 +644,10 @@ document.addEventListener("click",e=>{
   if(tg&&tab==="cat"){catSel=+tg.dataset.id;document.querySelectorAll(".it.sel").forEach(x=>x.classList.remove("sel"));tg.classList.add("sel");renderBuy();return}
   if(tg&&tab==="upg"&&!busy){target=+tg.dataset.id;renderTargets();renderRing();return}
 });
-document.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.matches(".it[role=button]")){e.preventDefault();e.target.click()}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){const r=$("#reveal");if(r&&!r.hidden){r.hidden=true;return}}if((e.key==="Enter"||e.key===" ")&&e.target.matches(".it[role=button]")){e.preventDefault();e.target.click()}});
 document.addEventListener("input",e=>{
   const id=e.target.id;
-  if(id==="q"){q=e.target.value;const p=e.target.selectionStart;tab==="inv"?viewInv():viewCat();restoreFocus("q",p)}
+  if(id==="q"){catLimit=120;q=e.target.value;const p=e.target.selectionStart;tab==="inv"?viewInv():viewCat();restoreFocus("q",p)}
   else if(id==="tq"){q=e.target.value;renderTargets()}
   else if(id==="rf"){rf=e.target.value;tab==="inv"?viewInv():viewCat()}
   else if(id==="sb"){sortBy=e.target.value;tab==="inv"?viewInv():viewCat()}
@@ -654,7 +658,8 @@ $("#reset").addEventListener("click",e=>{
   S={bal:1000,sec:0,uid:1,inv:[],opened:0,upW:0,upL:0,gift:1,gift2:1,gift3:1};sel.clear();target=null;openCase=null;save();rs=false;e.target.textContent="Начать заново";render();toast("Игра сброшена, баланс $1 000");
 });
 render();
-if(giftNow)toast("Подарок: +$100 000 на баланс");
+addEventListener("pagehide",save);
+if(giftNow)toast("Подарок: +"+fmt(giftSum)+" на баланс");
 })();
 </script>
 
