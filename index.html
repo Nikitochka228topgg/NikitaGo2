@@ -551,7 +551,11 @@ function doUpgrade(){
   if(busy||!canGo())return;
   busy=true;const V=selVal(),T=ITEMS[target],ch=chanceOf(V,T.v);
   const ids=[...sel];S.inv=S.inv.filter(x=>!sel.has(x.uid));sel.clear();
-  const landing=Math.random()*360,won=landing<ch*360;
+  const A=ch*360,won=Math.random()<ch,reg=won?[0,A]:[A,360];
+  let landing;
+  if(Math.random()<.5){const d=Math.min(.4+Math.random()*7,(reg[1]-reg[0])*.45);landing=Math.random()<.5?reg[0]+d:reg[1]-d}
+  else landing=reg[0]+Math.random()*(reg[1]-reg[0]);
+  const dur=3600+Math.floor(Math.random()*1800),turns=4+Math.floor(Math.random()*4);
   let uid=null,cons=null,cc=null;
   if(won){uid=S.uid++;S.inv.push({uid,id:T.id});S.upW++}else{
     S.upL++;
@@ -561,9 +565,10 @@ function doUpgrade(){
   save();head();
   const ptr=$("#ptr"),g=$("#goBtn");g.disabled=true;
   const fast=matchMedia("(prefers-reduced-motion:reduce)").matches;
-  rot=rot-(rot%360)+360*5+(won?Math.min(landing,ch*360-1):Math.max(landing,ch*360+1));
+  rot=rot-(rot%360)+360*turns+landing;
+  ptr.style.transition=`transform ${dur}ms cubic-bezier(.1,.75,.12,1)`;
   void ptr.offsetWidth;ptr.style.transform=`rotate(${rot}deg)`;
-  SND.click();if(!fast)for(let i=0;i<30;i++)setTimeout(SND.tick,4100*(1-Math.pow(1-i/30,1.8)));
+  SND.click();if(!fast)for(let i=0;i<30;i++)setTimeout(SND.tick,(dur-200)*(1-Math.pow(1-i/30,1.8)));
   setTimeout(()=>{
     busy=false;head();
     if(won)SND.win(T.t);else{SND.lose();if(cons)setTimeout(()=>SND.win(cons.t),700)}
@@ -571,7 +576,7 @@ function doUpgrade(){
     r.innerHTML=resHtml();
     const gb=$("#goBtn");if(gb)gb.disabled=true;
     setTimeout(()=>{if(tab==="upg"&&!busy){target=won?null:target;viewUp();const rr=$("#upRes");if(rr)rr.innerHTML=resHtml()}},cons?3500:1600);
-  },fast?200:4300);
+  },fast?200:dur+150);
 }
 
 /* ---------- каталог ---------- */
