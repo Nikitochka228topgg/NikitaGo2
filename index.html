@@ -339,14 +339,19 @@ CASE_DEF.push(["Мусорка","",5],["Карман","",25],["Стартовы�
 CASE_DEF.sort((a,b)=>a[2]-b[2]);
 const CASES=CASE_DEF.map((c,i)=>{
   const P=c[2];
-  const pool=ITEMS.filter(it=>it.v>=P*.08&&it.v<=P*40);
-  const ev=p=>{let s=0,w=0;for(const it of pool){const x=Math.pow(it.v/P,-p);s+=x*it.v;w+=x}return s/w};
-  let lo=0,hi=10;
-  if(ev(0)>P*.9){for(let k=0;k<50;k++){const m=(lo+hi)/2;if(ev(m)>P*.9)lo=m;else hi=m}}else{lo=hi=0}
-  const p=(lo+hi)/2;
-  let tot=0;const w=pool.map(it=>{const x=Math.pow(it.v/P,-p);tot+=x;return x});
-  const cum=[];let a=0;w.forEach(x=>{a+=x/tot;cum.push(a)});
-  return {i,name:c[0],ico:c[1],art:artFor(ITEMS.reduce((b,it)=>Math.abs(it.v-P*1.3)<Math.abs(b.v-P*1.3)?it:b)),price:P,h:(i*41+200)%360,pool,w:w.map(x=>x/tot),cum,rtp:ev(p)/P};
+  const pool=ITEMS.filter(it=>it.v>=P*.2&&it.v<=P*40);
+  const lowI=pool.filter(it=>it.v<P),highI=pool.filter(it=>it.v>=P);
+  const mean=(arr,p)=>{let s=0,w=0;for(const it of arr){const x=Math.pow(it.v/P,-p);s+=x*it.v;w+=x}return s/w};
+  const Elow=lowI.length?mean(lowI,0):0;
+  let lo=0,hi=12;
+  if(mean(highI,0)>P*1.8){for(let k=0;k<50;k++){const m=(lo+hi)/2;if(mean(highI,m)>P*1.8)lo=m;else hi=m}}else{lo=hi=0}
+  const ph=(lo+hi)/2,Ehigh=mean(highI,ph);
+  let q=lowI.length?(P*.97-Elow)/(Ehigh-Elow):1;
+  q=lowI.length?Math.max(.3,Math.min(.5,q)):1;
+  let sh=0;highI.forEach(it=>sh+=Math.pow(it.v/P,-ph));
+  const w=pool.map(it=>it.v<P?(1-q)/lowI.length:q*Math.pow(it.v/P,-ph)/sh);
+  const cum=[];let a=0;w.forEach(x=>{a+=x;cum.push(a)});cum[cum.length-1]=1;
+  return {i,name:c[0],ico:c[1],art:artFor(ITEMS.reduce((b,it)=>Math.abs(it.v-P*1.3)<Math.abs(b.v-P*1.3)?it:b)),price:P,h:(i*41+200)%360,pool,w,cum,rtp:pool.reduce((s,it,k)=>s+w[k]*it.v,0)/P,profit:q};
 });
 function pick(c){const r=Math.random();let lo=0,hi=c.cum.length-1;while(lo<hi){const m=(lo+hi)>>1;if(c.cum[m]<r)lo=m+1;else hi=m}return c.pool[lo]}
 
@@ -355,7 +360,7 @@ const KEY="autoupgrade-v1";
 let S={bal:1000,sec:0,uid:1,inv:[],opened:0,upW:0,upL:0,gift:0};
 try{const r=localStorage.getItem(KEY);if(r){const o=JSON.parse(r);if(o&&typeof o.bal==="number"&&Array.isArray(o.inv))S=Object.assign(S,o)}}catch(e){}
 let giftNow=false;
-if(!S.gift2){S.gift2=1;S.gift=1;S.bal+=100000;giftNow=true;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+if(!S.gift3){S.gift3=1;S.gift2=1;S.gift=1;S.bal+=100000;giftNow=true;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 let tab="cases",openCase=null,sel=new Set(),target=null,busy=false;
 let q="",sortBy="asc",rf="all",ctab="";
@@ -439,7 +444,7 @@ function viewCase(){
   const demo=Array.from({length:14},()=>pick(c));
   $("#main").innerHTML=`<button class="btn back" id="back">Все кейсы</button>
   <h2>${c.name} · ${fmt(c.price)}</h2>
-  <p class="sub">Возврат в среднем около ${Math.round(c.rtp*100)}% от цены. Лучший приз: ${order[0][0].model} (${order[0][0].vr}) за ${fmt(order[0][0].v)}.</p>
+  <p class="sub">Шанс выбить дороже кейса: ${Math.round(c.profit*100)}%. Возврат в среднем около ${Math.round(c.rtp*100)}% от цены. Лучший приз: ${order[0][0].model} (${order[0][0].vr}) за ${fmt(order[0][0].v)}.</p>
   <div id="rolls"><div class="roll"><div class="strip">${demo.map(it=>card(it)).join("")}</div></div></div>
   <div class="tools"><span class="sub" style="margin:0">Сколько открыть сразу:</span>
   <div class="quick" id="qty">${[1,2,3,4,5].map(n=>`<button class="btn${n===qty?" pri":""}" data-qty="${n}">×${n}</button>`).join("")}</div></div>
@@ -641,7 +646,7 @@ document.addEventListener("input",e=>{
 let rs=false;
 $("#reset").addEventListener("click",e=>{
   if(!rs){rs=true;e.target.textContent="Точно? Нажми ещё раз";setTimeout(()=>{rs=false;e.target.textContent="Начать заново"},3000);return}
-  S={bal:1000,sec:0,uid:1,inv:[],opened:0,upW:0,upL:0,gift:1,gift2:1};sel.clear();target=null;openCase=null;save();rs=false;e.target.textContent="Начать заново";render();toast("Игра сброшена, баланс $1 000");
+  S={bal:1000,sec:0,uid:1,inv:[],opened:0,upW:0,upL:0,gift:1,gift2:1,gift3:1};sel.clear();target=null;openCase=null;save();rs=false;e.target.textContent="Начать заново";render();toast("Игра сброшена, баланс $1 000");
 });
 render();
 if(giftNow)toast("Подарок: +$100 000 на баланс");
